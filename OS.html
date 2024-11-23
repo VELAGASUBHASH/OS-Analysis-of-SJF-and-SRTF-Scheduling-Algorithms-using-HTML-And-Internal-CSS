@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SJF and SRTF Analysis with Starvation Detection</title>
+  <style>
+    /* Page Background and Font */
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      background-color: #e6f2ff;
+      color: #333;
+    }
+
+    /* Header */
+    header {
+      background-color: #0040ff;
+      color: #ffffff;
+      padding: 1.5rem;
+      text-align: center;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+      font-size: 1.8em;
+      border-bottom: 2px solid #0033cc;
+    }
+
+    /* Main content styling */
+    main {
+      padding: 2rem;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    /* Sections for each calculation */
+    section {
+      margin-bottom: 2rem;
+      background: #cce0ff;
+      padding: 1.5rem;
+      border-radius: 10px;
+      box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3);
+    }
+
+    /* Table Styling */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 1rem;
+      background-color: #cce0ff;
+      color: #333;
+    }
+    th, td {
+      padding: 0.8rem;
+      border: 1px solid #99ccff;
+      text-align: left;
+    }
+    th {
+      background-color: #005ce6;
+      color: #ffffff;
+      font-weight: bold;
+    }
+
+    /* Starvation Warning Message */
+    #starvationWarning {
+      color: #ff3333;
+      font-weight: bold;
+      font-size: 1.3em;
+      text-align: center;
+      margin-bottom: 1.5rem;
+      text-transform: uppercase;
+    }
+
+    /* Input Field Styling */
+    #processInputs div {
+      margin-bottom: 1rem;
+    }
+
+    /* Label and Input Box Styling */
+    label {
+      font-weight: bold;
+      color: #333;
+      margin-right: 0.5rem;
+    }
+    input[type="number"] {
+      width: 60px;
+      padding: 0.3rem;
+      border: 1px solid #6699ff;
+      border-radius: 4px;
+      margin-right: 1rem;
+      background-color: #e6f2ff;
+      color: #333;
+    }
+
+    /* Button Styling */
+    .btn {
+      background-color: #005ce6;
+      color: white;
+      padding: 0.6rem 1.2rem;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 1rem;
+      margin-top: 1rem;
+      margin-right: 0.5rem;
+    }
+    .btn:hover {
+      background-color: #003399;
+    }
+
+    /* Process Generation Button */
+    #generateInputsButton {
+      background-color: #0073e6;
+      font-size: 0.9rem;
+    }
+    #generateInputsButton:hover {
+      background-color: #0052cc;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Analysis of SJF and SRTF Scheduling Algorithms</h1>
+  </header>
+  <main>
+    <section>
+      <h2>Number of Processes</h2>
+      <label for="numProcesses">Enter number of processes:</label>
+      <input type="number" id="numProcesses" name="numProcesses" min="1" max="10" required>
+      <button class="btn" id="generateInputsButton" onclick="generateInputFields()">Generate Inputs</button>
+    </section>
+    <section id="processInputSection" style="display: none;">
+      <h2>Process Details</h2>
+      <div id="processInputs"></div>
+      <button class="btn" onclick="calculateSchedules()">Calculate Schedules</button>
+    </section>
+    <div id="starvationWarning"></div>
+    <section>
+      <h2>Shortest Job First (SJF)</h2>
+      <table id="sjfTable">
+        <tr>
+          <th>Process</th>
+          <th>Arrival Time</th>
+          <th>Burst Time</th>
+          <th>Waiting Time</th>
+          <th>Turnaround Time</th>
+        </tr>
+      </table>
+    </section>
+    <section>
+      <h2>Shortest Remaining Time First (SRTF)</h2>
+      <table id="srtfTable">
+        <tr>
+          <th>Process</th>
+          <th>Arrival Time</th>
+          <th>Burst Time</th>
+          <th>Remaining Time</th>
+          <th>Waiting Time</th>
+          <th>Turnaround Time</th>
+        </tr>
+      </table>
+    </section>
+  </main>
+  <script>
+    function generateInputFields() {
+      const numProcesses = document.getElementById('numProcesses').value;
+      const processInputs = document.getElementById('processInputs');
+      const processInputSection = document.getElementById('processInputSection');
+      processInputs.innerHTML = '';
+      for (let i = 1; i <= numProcesses; i++) {
+        processInputs.innerHTML += `
+          <div>
+            <label for="arrival${i}">Process ${i} Arrival Time:</label>
+            <input type="number" id="arrival${i}" name="arrival${i}" required>
+            <label for="burst${i}">Process ${i} Burst Time:</label>
+            <input type="number" id="burst${i}" name="burst${i}" required>
+          </div>
+        `;
+      }
+      processInputSection.style.display = 'block';
+    }
+
+    function calculateSchedules() {
+      const numProcesses = parseInt(document.getElementById('numProcesses').value);
+      const processes = [];
+      for (let i = 1; i <= numProcesses; i++) {
+        const arrivalTime = parseInt(document.getElementById(`arrival${i}`).value);
+        const burstTime = parseInt(document.getElementById(`burst${i}`).value);
+        processes.push({ id: i, arrivalTime, burstTime, waitingTime: 0, turnaroundTime: 0 });
+      }
+      const sjfStarved = calculateSJF(processes);
+      const srtfStarved = calculateSRTF(processes);
+      displayStarvationWarning(sjfStarved || srtfStarved);
+    }
+
+    function calculateSJF(processes) {
+      processes.sort((a, b) => a.arrivalTime - b.arrivalTime || a.burstTime - b.burstTime);
+      let currentTime = 0;
+      let completed = [];
+      let starvationOccurred = false;
+      processes.forEach(process => {
+        if (process.arrivalTime > currentTime) {
+          currentTime = process.arrivalTime;
+        }
+        if (process.burstTime > 5) {
+          starvationOccurred = true;
+        }
+        process.waitingTime = currentTime - process.arrivalTime;
+        process.turnaroundTime = process.waitingTime + process.burstTime;
+        currentTime += process.burstTime;
+        completed.push(process);
+      });
+      displayTable(completed, 'sjfTable');
+      return starvationOccurred;
+    }
+
+    function calculateSRTF(processes) {
+      const n = processes.length;
+      const remainingTimes = processes.map(p => p.burstTime);
+      const waitingTimes = Array(n).fill(0);
+      const turnaroundTimes = Array(n).fill(0);
+      const arrivalTimes = processes.map(p => p.arrivalTime);
+      let completed = 0;
+      let currentTime = 0;
+      let starvationOccurred = false;
+      while (completed < n) {
+        let shortest = -1;
+        let minTime = Infinity;
+        for (let i = 0; i < n; i++) {
+          if (arrivalTimes[i] <= currentTime && remainingTimes[i] > 0 && remainingTimes[i] < minTime) {
+            minTime = remainingTimes[i];
+            shortest = i;
+          }
+          if (remainingTimes[i] > 5) {
+            starvationOccurred = true;
+          }
+        }
+        if (shortest === -1) {
+          currentTime++;
+          continue;
+        }
+        remainingTimes[shortest]--;
+        if (remainingTimes[shortest] === 0) {
+          completed++;
+          const finishTime = currentTime + 1;
+          turnaroundTimes[shortest] = finishTime - arrivalTimes[shortest];
+          waitingTimes[shortest] = turnaroundTimes[shortest] - processes[shortest].burstTime;
+        }
+        currentTime++;
+      }
+      const finalProcesses = processes.map((p, i) => ({
+        ...p,
+        waitingTime: waitingTimes[i],
+        turnaroundTime: turnaroundTimes[i]
+      }));
+      displayTable(finalProcesses, 'srtfTable');
+      return starvationOccurred;
+    }
+
+    function displayTable(processes, tableId) {
+      const table = document.getElementById(tableId);
+      table.innerHTML = `
+        <tr>
+          <th>Process</th>
+          <th>Arrival Time</th>
+          <th>Burst Time</th>
+          <th>Waiting Time</th>
+          <th>Turnaround Time</th>
+        </tr>
+      `;
+      processes.forEach(process => {
+        table.innerHTML += `
+          <tr>
+            <td>P${process.id}</td>
+            <td>${process.arrivalTime}</td>
+            <td>${process.burstTime}</td>
+            <td>${process.waitingTime}</td>
+            <td>${process.turnaroundTime}</td>
+          </tr>
+        `;
+      });
+    }
+
+    function displayStarvationWarning(starvationOccurred) {
+      const warningDiv = document.getElementById('starvationWarning');
+      if (starvationOccurred) {
+        warningDiv.textContent = "WARNING: THERE IS A POSSIBILITY OF STARVATION";
+      } else {
+        warningDiv.textContent = "";
+      }
+    }
+  </script>
+</body>
+</html>
